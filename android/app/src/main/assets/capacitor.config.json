@@ -1,0 +1,12 @@
+{
+	"appId": "com.teammars.servocontrol",
+	"appName": "Servo Control",
+	"webDir": "www",
+	"server": {
+		"androidScheme": "http",
+		"cleartext": true
+	},
+	"android": {
+		"allowMixedContent": true
+	}
+}

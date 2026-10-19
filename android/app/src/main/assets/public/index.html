@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Servo Control</title>
+<style>
+:root{--ground:#E4E6E1;--panel:#F3F4F0;--ink:#17262B;--muted:#5D6B6F;--line:#BFC4BD;--link:#0F6E6E;--arm:#E5B800;--stop:#B83A24;--ok:#2E7D4F;
+font-family:"Avenir Next","Segoe UI",system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root{--ground:#14201F;--panel:#1C2B2A;--ink:#E7ECE6;--muted:#93A4A0;--line:#304341;--link:#4FC3B5;--arm:#F0C419;--stop:#E2573F;--ok:#5CC48A}}
+*{box-sizing:border-box;touch-action:none;-webkit-user-select:none;user-select:none}
+html,body{margin:0;height:100%;background:var(--ground);color:var(--ink)}
+body{display:grid;grid-template-rows:auto 1fr;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+header{display:flex;gap:10px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+header h1{font-size:17px;margin:0}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--stop)}.dot.on{background:var(--ok)}
+#status{font-size:13px;color:var(--muted)}.sp{flex:1}
+input[type=text],input[type=number]{padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);font:inherit;font-size:13px;touch-action:auto;user-select:text}
+button{font:inherit;font-size:14px;font-weight:600;padding:10px 14px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
+button:active{transform:scale(.97)}
+button:focus-visible,input:focus-visible{outline:3px solid var(--link);outline-offset:2px}
+button.on,button[aria-pressed="true"]{background:var(--arm);border-color:var(--arm);color:#17262B}
+button.danger{background:var(--stop);border-color:var(--stop);color:#fff}
+main{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:14px;overflow:auto;align-content:start}
+@media (max-width:720px){main{grid-template-columns:1fr}}
+section{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px}
+h2{margin:0;font-size:14px;color:var(--muted)}
+.stickwrap{display:grid;place-items:center}
+.stick{position:relative;width:min(100%,250px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,var(--ground) 0 62%,var(--line) 63% 64%,var(--ground) 65%);border:2px solid var(--line)}
+.stick::before,.stick::after{content:"";position:absolute;background:var(--line)}
+.stick::before{left:50%;top:8%;bottom:8%;width:1px}.stick::after{top:50%;left:8%;right:8%;height:1px}
+.knob{position:absolute;left:50%;top:50%;width:34%;height:34%;margin:-17% 0 0 -17%;border-radius:50%;background:var(--ink);border:4px solid var(--arm);z-index:2}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+.row{display:grid;gap:4px}.row label{display:flex;justify-content:space-between;font-size:13px;color:var(--muted)}.row label b{color:var(--ink);font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--link);height:28px;touch-action:auto}
+.servos{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.servo{border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--ground);display:grid;gap:6px;justify-items:center}
+.dial{width:96px;height:96px;border-radius:50%;border:2px solid var(--line);position:relative}
+.dial i{position:absolute;left:50%;top:6px;width:4px;height:42px;margin-left:-2px;background:var(--arm);border-radius:2px;transform-origin:50% 42px;transition:transform .08s linear}
+.dial::after{content:"";position:absolute;left:50%;top:50%;width:10px;height:10px;margin:-5px;border-radius:50%;background:var(--ink)}
+.servo .big{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.servo small{color:var(--muted);font-size:12px;text-align:center}
+.tag{font-size:11px;padding:2px 8px;border-radius:99px;background:var(--stop);color:#fff}.tag.ok{background:var(--ok)}
+#log{font-size:12px;color:var(--muted);min-height:1.2em}
+details summary{cursor:pointer;font-size:14px;color:var(--muted);touch-action:auto}
+.lim{display:grid;grid-template-columns:auto 1fr 1fr;gap:6px;align-items:center;font-size:13px;margin-top:8px}
+.lim input{width:100%}
+</style>
+</head>
+<body>
+<header>
+  <span class="dot" id="dot"></span><h1>Servo Control</h1><span id="status">Disconnected</span><span class="sp"></span>
+  <input type="text" id="host" value="192.168.4.1" size="12" aria-label="Robot address" inputmode="decimal">
+  <button id="connect">Connect</button>
+</header>
+<main id="main">
+  <section>
+    <h2>Joystick</h2>
+    <div class="stickwrap"><div class="stick" id="stick"><div class="knob"></div></div></div>
+    <div class="btns">
+      <button id="mode" aria-pressed="false">Mode: Hold position</button>
+      <button id="center">Center both</button>
+    </div>
+    <div class="row"><label>Joystick speed <b id="gainv">60%</b></label><input type="range" id="gain" min="10" max="100" value="60"></div>
+  </section>
+
+  <section>
+    <h2>Servos</h2>
+    <div class="servos" id="servos"></div>
+    <div class="btns">
+      <button id="torque" aria-pressed="true">Torque ON</button>
+      <button id="rescan">Re-scan</button>
+    </div>
+    <div class="row"><label>Move speed <b id="spdv">1000</b></label><input type="range" id="spd" min="100" max="3000" step="50" value="1000"></div>
+    <div class="row"><label>Acceleration <b id="accv">50</b></label><input type="range" id="acc" min="0" max="254" value="50"></div>
+  </section>
+
+  <section>
+    <h2>Direct control</h2>
+    <div class="row"><label>Servo 1 target <b id="t1v">2048</b></label><input type="range" id="t1" min="0" max="4095" value="2048"></div>
+    <div class="row"><label>Servo 2 target <b id="t2v">2048</b></label><input type="range" id="t2" min="0" max="4095" value="2048"></div>
+    <div class="btns">
+      <button data-step="1:-100">S1 −</button><button data-step="1:100">S1 +</button>
+      <button data-step="2:-100">S2 −</button><button data-step="2:100">S2 +</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Presets</h2>
+    <div class="btns" id="presets"></div>
+    <button id="saveMode" aria-pressed="false">Save mode: off (tap to arm, then tap a preset)</button>
+    <details><summary>Travel limits</summary>
+      <div class="lim"><span></span><span>Min</span><span>Max</span>
+        <span>S1</span><input type="number" id="min1" min="0" max="4095" value="0"><input type="number" id="max1" min="0" max="4095" value="4095">
+        <span>S2</span><input type="number" id="min2" min="0" max="4095" value="0"><input type="number" id="max2" min="0" max="4095" value="4095"></div>
+    </details>
+    <div id="log"></div>
+  </section>
+  <!-- Add new feature panels here: <section id="myFeature">...</section> -->
+</main>
+
+<script>
+/* ============ Core ============ */
+const $=id=>document.getElementById(id), clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const App={
+  ws:null, want:false, timer:null, retry:null, features:[], dirty:true, lastSend:0,
+  state:{p:[2048,2048], spd:1000, acc:50, torque:true, synced:false, lim:[[0,4095],[0,4095]], tel:null},
+  register(f){this.features.push(f)},
+  send(obj){ if(this.ws&&this.ws.readyState===1) this.ws.send(JSON.stringify(obj)) },
+  sendServo(){ this.send({t:'servo',p1:Math.round(this.state.p[0]),p2:Math.round(this.state.p[1]),spd:this.state.spd,acc:this.state.acc}); this.lastSend=performance.now(); this.dirty=false },
+  setTarget(i,v){ const [lo,hi]=this.state.lim[i]; this.state.p[i]=clamp(v,lo,hi); this.dirty=true },
+  store:{get(k,d){try{const v=localStorage.getItem('sc_'+k);return v===null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem('sc_'+k,JSON.stringify(v))}catch(e){}}},
+  connect(){
+    clearTimeout(this.retry);
+    const host=$('host').value.trim()||'192.168.4.1'; this.store.set('host',host);
+    status('Connecting…',false);
+    try{this.ws=new WebSocket(`ws://${host}/ws`)}catch(e){status('Invalid address',false);return}
+    this.ws.onopen=()=>{status('Connected to '+host,true);$('connect').textContent='Disconnect';this.state.synced=false;
+      clearInterval(this.timer);let last=performance.now();
+      this.timer=setInterval(()=>{const now=performance.now(),dt=(now-last)/1000;last=now;
+        this.features.forEach(f=>f.tick&&f.tick(dt));
+        if(this.state.torque&&(this.dirty||now-this.lastSend>500))this.sendServo()},40)};
+    this.ws.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch(_){return}
+      this.features.forEach(f=>f.onMessage&&f.onMessage(m))};
+    this.ws.onclose=()=>{clearInterval(this.timer);status(this.want?'Connection lost, retrying…':'Disconnected',false);
+      $('connect').textContent=this.want?'Disconnect':'Connect'; if(this.want)this.retry=setTimeout(()=>this.connect(),1500)};
+    this.ws.onerror=()=>{$('log').textContent='Join Wi-Fi ESP32_Robot_AP first, then check the address.'};
+  }
+};
+function status(t,on){$('status').textContent=t;$('dot').classList.toggle('on',on)}
+$('host').value=App.store.get('host','192.168.4.1');
+$('connect').onclick=()=>{ if(App.want){App.want=false;App.ws&&App.ws.close();clearTimeout(App.retry)} else {App.want=true;App.connect()} };
+
+/* ============ Feature: servo state + telemetry ============ */
+App.register({
+  init(){
+    $('servos').innerHTML=[1,2].map(n=>`<div class="servo"><b>Servo ${n}</b><div class="dial"><i id="needle${n}"></i></div>
+      <div class="big" id="pos${n}">--</div><small id="info${n}">no data</small><span class="tag" id="tag${n}">offline</span></div>`).join('');
+  },
+  onMessage(m){
+    if(m.t!=='tel')return;
+    const S=App.state; S.tel=m; S.torque=m.tq;
+    m.s.forEach((s,i)=>{const n=i+1;
+      $('tag'+n).textContent=s.ok?'online':'offline';$('tag'+n).classList.toggle('ok',s.ok);
+      if(!s.ok)return;
+      $('pos'+n).textContent=s.pos; $('needle'+n).style.transform=`rotate(${s.pos/4096*360}deg)`;
+      $('info'+n).textContent=`${s.temp}°C · ${(s.volt/10).toFixed(1)} V · load ${s.load}`;
+      /* follow the real position until we are in control, so nothing jumps */
+      if(!S.synced||!S.torque){S.p[i]=s.pos}
+    });
+    if(!S.synced&&m.s.every(s=>s.ok)){S.synced=true}
+    syncSliders(); const b=$('torque'); b.setAttribute('aria-pressed',S.torque); b.textContent=S.torque?'Torque ON':'Torque OFF (free)';
+  }
+});
+function syncSliders(){[1,2].forEach(n=>{ if(document.activeElement!==$('t'+n)) $('t'+n).value=App.state.p[n-1]; $('t'+n+'v').textContent=Math.round(App.state.p[n-1]) })}
+
+/* ============ Feature: joystick ============ */
+App.register({
+  mode:'velocity', x:0, y:0,
+  init(){
+    const el=$('stick'),knob=el.querySelector('.knob');let id=null;const self=this;
+    const set=(x,y)=>{self.x=x;self.y=y;knob.style.transform=`translate(${x*145}%,${-y*145}%)`;
+      if(self.mode==='position'){const c=2048,r=2047;App.setTarget(0,c+x*r*self.gain());App.setTarget(1,c+y*r*self.gain())}};
+    const calc=e=>{const r=el.getBoundingClientRect(),R=r.width/2*.62;let x=(e.clientX-(r.left+r.width/2))/R,y=-(e.clientY-(r.top+r.height/2))/R;
+      const m=Math.hypot(x,y);if(m>1){x/=m;y/=m} if(m<.08){x=0;y=0} set(x,y)};
+    el.addEventListener('pointerdown',e=>{id=e.pointerId;el.setPointerCapture(id);calc(e)});
+    el.addEventListener('pointermove',e=>{if(e.pointerId===id)calc(e)});
+    const end=e=>{if(e.pointerId===id){id=null;set(0,0)}};el.addEventListener('pointerup',end);el.addEventListener('pointercancel',end);
+    $('mode').onclick=()=>{this.mode=this.mode==='velocity'?'position':'velocity';
+      $('mode').textContent=this.mode==='velocity'?'Mode: Hold position':'Mode: Spring to center';$('mode').setAttribute('aria-pressed',this.mode==='position')};
+    $('gain').oninput=e=>$('gainv').textContent=e.target.value+'%';
+  },
+  gain(){return +$('gain').value/100},
+  tick(dt){ if(this.mode!=='velocity'||(!this.x&&!this.y)||!App.state.synced)return;
+    const rate=1500*this.gain(); /* steps per second at full deflection */
+    App.setTarget(0,App.state.p[0]+this.x*rate*dt); App.setTarget(1,App.state.p[1]+this.y*rate*dt); syncSliders() }
+});
+
+/* ============ Feature: buttons / sliders / presets ============ */
+App.register({
+  init(){
+    $('center').onclick=()=>{App.setTarget(0,2048);App.setTarget(1,2048);syncSliders()};
+    $('torque').onclick=()=>{const on=!App.state.torque; App.send({t:'torque',on}); App.state.torque=on; if(on)App.state.synced=false};
+    $('rescan').onclick=()=>App.send({t:'ping'});
+    $('spd').oninput=e=>{App.state.spd=+e.target.value;$('spdv').textContent=e.target.value;App.dirty=true};
+    $('acc').oninput=e=>{App.state.acc=+e.target.value;$('accv').textContent=e.target.value;App.dirty=true};
+    [1,2].forEach(n=>$('t'+n).oninput=e=>{App.setTarget(n-1,+e.target.value);syncSliders()});
+    document.querySelectorAll('[data-step]').forEach(b=>b.onclick=()=>{const [n,d]=b.dataset.step.split(':').map(Number);App.setTarget(n-1,App.state.p[n-1]+d);syncSliders()});
+    /* limits */
+    const lim=App.store.get('lim',[[0,4095],[0,4095]]);App.state.lim=lim;
+    [1,2].forEach(n=>{['min','max'].forEach((k,j)=>{const el=$(k+n);el.value=lim[n-1][j];
+      el.onchange=()=>{lim[n-1][j]=clamp(+el.value,0,4095);App.state.lim=lim;App.store.set('lim',lim)}})});
+    /* presets */
+    const pre=App.store.get('presets',[[2048,2048],[1024,2048],[3072,2048],[2048,1024]]);let saving=false;
+    const box=$('presets');
+    pre.forEach((p,i)=>{const b=document.createElement('button');b.textContent='P'+(i+1);box.appendChild(b);
+      b.onclick=()=>{ if(saving){pre[i]=[...App.state.p].map(Math.round);App.store.set('presets',pre);$('log').textContent=`Saved P${i+1}`;saving=false;sm()}
+        else{App.setTarget(0,pre[i][0]);App.setTarget(1,pre[i][1]);syncSliders()} }});
+    const sm=()=>{$('saveMode').setAttribute('aria-pressed',saving);$('saveMode').textContent=saving?'Save mode: ON - tap a preset':'Save mode: off (tap to arm, then tap a preset)'};
+    $('saveMode').onclick=()=>{saving=!saving;sm()};
+  }
+});
+
+App.features.forEach(f=>f.init&&f.init());
+</script>
+</body>
+</html>
